@@ -28,15 +28,15 @@ Y_amm_gln = 9e-1 # yield of ammonia on glutamine [=] mmol/mmol
 K_lysis = 1.3e-2 # Monod constant for lyssis [=] mM
 
 # initial conditions
-X0 = 3e5		# inoculum [=] cells/mL ; assume 100% viability <=> X_v
-Xd0 = 0 		# no dead cells at the beginning
+Xv0 = 3e5		# inoculum [=] cells/mL ; assume 100% viability <=> X_v
+Xd0 = Xv0/.95 		# assume 5% dead cells or 95% viable cells
 GLC_0 = 55		# glucose concentration [=] mM
 GLN_0 = 4 		# glutamine concentration [=] mM
-AMM_0 = 1e-12	# ammonia concentration [=] mM 
+AMM_0 = 1e-5	# ammonia concentration [=] mM 
 
-t = 100 		# solve ODEs up to this time in hours
+t = 200 		# solve ODEs up to this time in hours
 
-IC = np.array([X0, Xd0, GLC_0, GLN_0, AMM_0])
+IC = np.array([Xv0, Xd0, GLC_0, GLN_0, AMM_0])
 
 # ODE function
 def HEK293(t, w): # inputs: time value, solution vector at current iteration
@@ -47,7 +47,7 @@ def HEK293(t, w): # inputs: time value, solution vector at current iteration
 	GLN = w[3]
 	AMM = w[4]
 	# specfic growth and death rates
-	mu = mu_min + (mu_max-mu_min)*GLCU*GLN/(K_glc+GLC)/(K_gln+GLN)
+	mu = mu_min + (mu_max-mu_min)*GLC*GLN/(K_glc+GLC)/(K_gln+GLN)
 	mu_d = mu_d_max/(1+(K_d_amm/AMM)**d_n)
 	# intermediate variables for ODEs
 	M_gln = a1*GLN/(a2+GLN)
@@ -57,5 +57,35 @@ def HEK293(t, w): # inputs: time value, solution vector at current iteration
 	# ODE
 	dXv = (mu-mu_d)*Xv
 	dXd = (mu_d-K_lysis)*Xd
-	dGLN =  
+	dGLN = Q_gln*Xv - K_d_gln*GLN
+	dGLC = Q_glc*Xv
+	dAMM = Q_amm*Xv + K_d_gln*GLN 
+	return np.array([dXv, dXd, dGLN, dGLC, dAMM])
+
+cells = integrate.solve_ivp(HEK293, (0,t), IC, rtol=1e-9)
+
+time = cells.t
+viable = cells.y[0]
+dead = cells.y[1]
+glutamine = cells.y[2]
+glucose = cells.y[3]
+nh3 = cells.y[4]
+
+# nondimensionalize these variables, normalize
+viable = viable/viable[-1]
+dead = dead/dead[1]
+glutamine = glutamine/glutamine[-1]
+glucose = glucose/glucose[1]
+nh3 = nh3/nh3[-1]
+print(dead)
+
+plt.plot(time, viable, label='Xv')
+plt.plot(time, dead, label='Xd')
+plt.plot(time, glutamine, label='GLN')
+plt.plot(time, glucose, label='GLC')
+plt.plot(time, nh3, label='AMM')
+
+
+plt.legend()
+plt.show()
 
