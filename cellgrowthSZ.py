@@ -34,7 +34,7 @@ GLC_0 = 55		# glucose concentration [=] mM
 GLN_0 = 4 		# glutamine concentration [=] mM
 AMM_0 = 1e-5	# ammonia concentration [=] mM 
 
-t = 200 		# solve ODEs up to this time in hours
+t = 150 		# solve ODEs up to this time in hours
 
 IC = np.array([Xv0, Xd0, GLC_0, GLN_0, AMM_0])
 
@@ -56,7 +56,8 @@ def HEK293(t, w): # inputs: time value, solution vector at current iteration
 	Q_amm = -Y_amm_gln*Q_gln
 	# ODE
 	dXv = (mu-mu_d)*Xv
-	dXd = (mu_d-K_lysis)*Xd
+	#dXd = (mu_d-K_lysis)*Xd
+	dXd = (mu_d)*Xd
 	dGLN = Q_gln*Xv - K_d_gln*GLN
 	dGLC = Q_glc*Xv
 	dAMM = Q_amm*Xv + K_d_gln*GLN 
@@ -70,6 +71,10 @@ dead = cells.y[1]
 glutamine = cells.y[2]
 glucose = cells.y[3]
 nh3 = cells.y[4]
+print('viability:', viable[-1]/(viable[-1]+dead[-1]))
+print('mult', viable[-1]/Xv0)
+print(np.max(viable), 'vialble')
+print(dead)
 
 # nondimensionalize these variables, normalize
 viable = viable/viable[-1]
@@ -77,14 +82,14 @@ dead = dead/dead[1]
 glutamine = glutamine/glutamine[-1]
 glucose = glucose/glucose[1]
 nh3 = nh3/nh3[-1]
-print(dead)
+time = time
+
 
 plt.plot(time, viable, label='Xv')
 plt.plot(time, dead, label='Xd')
 plt.plot(time, glutamine, label='GLN')
 plt.plot(time, glucose, label='GLC')
 plt.plot(time, nh3, label='AMM')
-
 
 plt.legend()
 plt.show()
