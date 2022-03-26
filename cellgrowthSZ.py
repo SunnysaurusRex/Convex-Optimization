@@ -76,20 +76,21 @@ Y_x_tyr = 4.3e9
 Y_x_val = 6e9
 
 # initial conditions
-Xv0 = 5e6		# inoculum [=] cells/mL ; assume 100% viability <=> X_v
-Xd0 = Xv0/.95 		# assume 5% dead cells or 95% viable cells
-GLC_0 = 55		# glucose concentration [=] mM
+X0 = 1e6			# inoculum, total number of cells
+Xv0 = X0*.95		# Assume 95% viability
+Xd0 = X0-Xv0 		# assume 5% dead cells or 95% viable cells
+GLC_0 = 22		# glucose concentration [=] mM
 GLN_0 = 4 		# glutamine concentration [=] mM
 AMM_0 = 1e-10	# ammonia concentration [=] mM 
 
 t = 150 		# solve ODEs up to this time in hours
 
-IC = np.array([Xv0, Xd0, GLC_0, GLN_0, AMM_0])
-# construct a new IC vector by appending a list of the remaining amino acids in order of:
-# ala, arg, asn, asp, cys, glu, gly, his, ile, leu, lys, met, phe, pro, ser, thr, tyr, val, lac
-IC_aa = np.array([1.84, 4.06, 2.33, 1.8, .61, 2.22, 2.25, 0.54, 1.93, 2.32, 6.84, .56, .99, .53, 2.79, 3.23, .62, 1.96, 1e-10])
+IC = np.array([Xv0, Xd0])
+# construct a new IC vector by appending a list of the remaining substances in order of:
+# glc, gln, amm, ala, arg, asn, asp, cys, glu, gly, his, ile, leu, lys, met, phe, pro, ser, thr, tyr, val, lac
+IC_aa = np.array([GLC_0, GLN_0, AMM_0, 1.84, 4.06, 2.33, 1.8, .61, 2.22, 2.25, 0.54, 1.93, 2.32, 6.84, .56, .99, .53, 2.79, 3.23, .62, 1.96, 1e-10])
 IC = np.append(IC, IC_aa)
-print(np.size(IC))
+#print(np.size(IC))
 
 # ODE function
 def HEK293(t, w): # inputs: time value, solution vector at current iteration
@@ -205,31 +206,59 @@ def HEK293(t, w): # inputs: time value, solution vector at current iteration
 					 dLEU, dLYS, dMET, dPHE, dPRO, dSER, dTHR, dTYR, dVAL, dLAC
 					])
 
-cells = integrate.solve_ivp(HEK293, (0,t), IC, rtol=1e-9)
+pass_1 = integrate.solve_ivp(HEK293, (0,16), IC, rtol=1e-9)
 
-time = cells.t
-viable = cells.y[0]
-dead = cells.y[1]
-glutamine = cells.y[2]
-glucose = cells.y[3]
-nh3 = cells.y[4]
-print('viability:', viable[-1]/(viable[-1]+dead[-1]))
-print('mult', np.max(viable)/Xv0)
-print(f"{np.max(viable):.2e}", 'maximum viable density')
-#print(dead)
+#time = cells.t
+#viable = cells.y[0]
+#dead = cells.y[1]
+#glucose = cells.y[3]
+#maxim = np.max(viable)
+#max_index = np.where(viable == maxim)
+#print(time[max_index])
+#print('mult', maxim/Xv0)
+#print('viability:', viable[max_index]/(viable[max_index]+dead[max_index]))
+#print(f"{maxim:.2e}", 'maximum viable density')
 
-# nondimensionalize these variables, normalize
-viable = viable/viable[-1]
-dead = dead/dead[1]
-glutamine = glutamine/glutamine[-1]
-glucose = glucose/glucose[1]
-nh3 = nh3/nh3[-1]
+#plt.plot(pass_1.t, pass_1.y[0]/Xv0, label='Xv')
+#plt.plot(pass_1.t, pass_1.y[1]/Xd0, label='Xd')
+#plt.plot(time, glutamine, label='GLN')
+#plt.plot(pass_1.t, pass_1.y[3]/GLC_0, label='GLC')
+#plt.plot(time, nh3, label='AMM')
+mult_1 = pass_1.y[0][-1]/Xv0
+print('mult1', mult_1)
 
-plt.plot(time, viable, label='Xv')
-plt.plot(time, dead, label='Xd')
-plt.plot(time, glutamine, label='GLN')
-plt.plot(time, glucose, label='GLC')
-plt.plot(time, nh3, label='AMM')
+dilute_2 = 30
+IC_2 = np.append(np.array([pass_1.y[0][-1], pass_1.y[1][-1]])/dilute_2, IC_aa)
+t2 = 48
+pass_2 = integrate.solve_ivp(HEK293, (0,t2), IC_2, rtol=1e-9)
+#plt.plot(pass_2.t, pass_2.y[0]/pass_2.y[0][0], label='Xv')
+#plt.plot(pass_2.t, pass_2.y[1]/pass_2.y[1][0], label='Xd')
+mult_2 = pass_2.y[0][-1]/pass_2.y[0][0]
+print('mult2', mult_2)
 
+dilute_3 = 200
+IC_3 = np.append(np.array([pass_2.y[0][-1], pass_2.y[1][-1]])*dilute_2/dilute_3, IC_aa)
+t3 = 80
+pass_3 = integrate.solve_ivp(HEK293, (0,t3), IC_3, rtol=1e-9)
+#plt.plot(pass_3.t, pass_3.y[0]/pass_3.y[0][0], label='Xv')
+#plt.plot(pass_3.t, pass_3.y[1]/pass_3.y[1][0], label='Xd')
+mult_3 = pass_3.y[0][-1]/pass_3.y[0][0]
+print('mult3', mult_3)
+
+dilute_4 = 2000
+IC_4 = np.append(np.array([pass_3.y[0][-1], pass_3.y[1][-1]])*dilute_3/dilute_4, IC_aa)
+t4 = 100
+pass_4 = integrate.solve_ivp(HEK293, (0,t4), IC_4, rtol=1e-9)
+plt.plot(pass_4.t, pass_4.y[0]/pass_4.y[0][0], label='Xv')
+plt.plot(pass_4.t, pass_4.y[1]/pass_4.y[1][0], label='Xd')
+mult_4 = pass_4.y[0][-1]/pass_4.y[0][0]
+print('mult4', mult_4)
+
+# this is a test run where I plug in dilution volumes to get some desired total cell amt
+# the cryovial of 1e6 cells/mL x 1mL will grow to some time 16 hours before being harvested
+# this total amount of cells will then get diluted by the next dilution volume to
+# be used as the initial condition for the next cell growth stage.
+# the multiplier is the ratio between the initial cell density and the final cell density at harvesting
+# the cells are harvested at times t2, t3, t4.
 plt.legend()
 plt.show()
