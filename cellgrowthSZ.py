@@ -207,7 +207,7 @@ IC = np.append(IC, IC_aa)
 #print(np.size(IC))
 
 v = np.array([1, 50, 250, 2000, 30000]) 	# vector of volumes [=] mL
-t = np.array([16, 48, 72, 90, 100])			# vector of times [=] hours
+t = np.array([16, 48, 65, 80, 85])			# vector of times [=] hours
 viable = [1e6]
 dead = [1e6*.05]
 multiply = []
@@ -228,12 +228,20 @@ for i in range(len(v)):
 	if i < len(v)-1:			# len(v) = 4, add initial conditions until i = 4 or while i <= 3
 		viable.append(count/v[i+1])
 		dead.append(Xd_t*v[i]/v[i+1])
+	# plotting
+	time = passage.t + np.sum(t[0:i])
+	label_string = 'passage ' + str(i+1)
+	plt.plot(time, passage.y[0], label=label_string)
 
 print('mult', multiply)
 print('total cells', [f"{x:.2e}" for x in cell_count])
 print('total time', np.sum(t)/24, 'days')
 print(desired_count<cell_count[-1]) 
 
-
+plt.title('Cell density vs time')
+plt.xlabel('time / hours')
+plt.ylabel('cell density / $cells\\cdot mL^{-1}$')
+plt.legend()
+plt.show()
 
 
