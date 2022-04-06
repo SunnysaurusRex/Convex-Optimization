@@ -75,6 +75,8 @@ Y_x_thr = 1e10
 Y_x_tyr = 4.3e9
 Y_x_val = 6e9
 
+specific_growth = []
+
 # ODE function
 def HEK293(t, w): # inputs: time value, solution vector at current iteration
 	# decompose w vector
@@ -183,14 +185,15 @@ def HEK293(t, w): # inputs: time value, solution vector at current iteration
 	dTHR = Q_thr*Xv
 	dTYR = Q_tyr*Xv
 	dVAL = Q_val*Xv
-	dLAC = Q_lac*Xv 
+	dLAC = Q_lac*Xv
+
 	return np.array([dXv, dXd, dGLN, dGLC, dAMM,
 					 dALA, dARG, dASN, dASP, dCYS, dGLU, dGLY, dHIS, dILE,
 					 dLEU, dLYS, dMET, dPHE, dPRO, dSER, dTHR, dTYR, dVAL, dLAC
 					])
 
 # cell media initial conditions
-GLC_0 = 50		# glucose concentration [=] mM
+GLC_0 = 20		# glucose concentration [=] mM
 GLN_0 = 4 		# glutamine concentration [=] mM
 AMM_0 = 1e-10	# ammonia concentration [=] mM 
 
@@ -199,57 +202,111 @@ X0 = 1e6			# inoculum, total number of cells
 Xv0 = X0*.95		# Assume 95% viability
 Xd0 = X0-Xv0 		# assume 5% dead cells or 95% viable cells
 
-IC = np.array([Xv0, Xd0])
-# construct a new IC vector by appending a list of the remaining substances in order of:
+# first analyze the cell growth for one passage
+v1 = .1				# dilution volume L
+t1 = 100			# solve ODEs up to this time point		
+IC = np.array([Xv0, Xd0])/v1
+# construct a IC vector by appending a list of the remaining substances in order of:
 # glc, gln, amm, ala, arg, asn, asp, cys, glu, gly, his, ile, leu, lys, met, phe, pro, ser, thr, tyr, val, lac
 IC_aa = np.array([GLC_0, GLN_0, AMM_0, 1.84, 4.06, 2.33, 1.8, .61, 2.22, 2.25, 0.54, 1.93, 2.32, 6.84, .56, .99, .53, 2.79, 3.23, .62, 1.96, 1e-10])
 IC = np.append(IC, IC_aa)
 #print(np.size(IC))
 
-v = np.array([30, 200, 1000, 4000]) 	# vector of volumes [=] mL
-t = np.array([24, 48, 90, 98])			# vector of times [=] hours
-viable = [Xv0/v[0]] 						# vector of viable cell density initial conditions
-dead = [Xd0/v[0]]							# vector of dead cell density initial conditions
-multiply = []								# vector of cell density multipliers from time inoculum to harvest
-cell_count = [1e6]							# vector of total cell count
+passage = integrate.solve_ivp(HEK293, (0, t1), IC, rtol=1e-9, max_step=1) # solve ODEs
+
 desired_count = 2.16e12
 
-for i in range(len(v)): # iteratre through all passages
-	# make initial condition vector for cell concentrations
-	cell_density = np.array([viable[i], dead[i]])
-	IC = np.append(cell_density, IC_aa) # append cell media concentrations to cell concentrations
-	passage = integrate.solve_ivp(HEK293, (0, t[i]), IC, rtol=1e-9, max_step=.5) # solve ODEs
-	final_density = passage.y[0][-1]	# final cell density when cells are harvested at passage i
-	Xd_t = passage.y[1][-1]				# pass the number of dead cells to the next passage ICs.
-	mult = final_density/cell_density[0]	# find the ratio between final density and intial density
-	multiply.append(mult)					# record this multiplier in the 'multiply' list
-	count = final_density*v[i]				# record the cell count
-	cell_count.append(count)				# add cell count to cell count list
-	print(i, f'{final_density:.2e}', f'{count:.2e}')	# print data in terminal for debugging
-	# dilute the cells to use as the intial cell density for the next passage
-	if i < len(v)-1:			# len(v) = 4, add initial conditions until i = 4 or while i <= 3
-		viable.append(count/v[i+1]) # divide the cell count by the next volume of the passage
-		dead.append(Xd_t*v[i]/v[i+1])	# do the same for dead cells
-	else: # for the last passage, find the maximum cell density
-		max_density = passage.y[0][-1]
-		index = np.where(passage.y[0] == max_density)
-		print('max_time', passage.t[index])
-	# plotting
-	time = passage.t + np.sum(t[0:i])
-	label_string = 'passage ' + str(i+1)
-	plt.plot(time, passage.y[0], label=label_string)
+# extract solution vectors
+time = passage.t
+viable = passage.y[0]
+dead = passage.y[1]
+glucose = passage.y[2]
+gln = passage.y[3]
+amm = passage.y[4]
+ala = passage.y[5]
+# non-dimensionalize the solution vectors
+viable = viable/np.max(viable)
+dead = dead/np.max(dead)
+glucose = glucose/np.max(glucose)
+gln = gln/np.max(gln)
+amm = amm/np.max(amm)
+ala = ala/np.max(ala)
 
-print('mult', multiply)
-print('inoculum density', viable)
-print('total cells', [f"{x:.2e}" for x in cell_count])
-print('total time', np.sum(t)/24, 'days')
-print(desired_count<cell_count[-1]) 
-
-plt.title('Cell density vs time')
+# plotting
+plt.plot(time, viable, label='Xv')
+plt.plot(time, dead, label='Xd')
+plt.plot(time, glucose, label='glc')
+plt.plot(time, gln, label='gln')
+plt.plot(time, amm, label='amm')
+plt.plot(time, ala, label='ala')
 plt.xlabel('time / hours')
-plt.ylabel('cell density / $cells\\cdot mL^{-1}$')
-#plt.ylim(1e4,9e6)
+plt.ylabel('dimensionless quantity')
+plt.title('1e6 cells diluted by %.1f L in %d mM GLN'%(v1,GLN_0))
 plt.legend()
 plt.show()
+'''
+v2 = 10
+IC2 = np.array([Xv0, Xd0])/v2
+IC2 = np.append(IC2, IC_aa)
+compare = integrate.solve_ivp(HEK293, (0, t1), IC2, rtol=1e-9, max_step=1) # solve ODEs
+plt.figure()
+plt.plot(compare.t, compare.y[0], label='%d mL'%v2)
+plt.plot(passage.t, passage.y[0], label='%d mL'%v1)
+plt.legend()
+plt.xlabel('time / hours')
+plt.ylabel('cell density / $cells\\cdot mL^{-1}$')
+plt.title('Growth of 1e6 cells diluted to %d and %d mL'%(v2,v1))
 
+plt.figure()
+plt.ylabel('cell density / $cells\\cdot mL^{-1}$')
+plt.xlim(0, 70)
+plt.plot(time, passage.y[0])
 
+#plt.ylim(1e4,1e5)
+#print(time)
+
+plt.figure()
+secant = (passage.y[0][1:]-Xv0/v1)/time[1:]
+plt.scatter(time[1:], secant, label='avg RoC')
+plt.ylim(0,1e7)		# change window
+plt.xlim(0)			# make the thing start at time = 0
+secant_min = np.where(secant == np.min(secant)) # index where secant line is at a min
+#plt.xlim(0, time[secant_min])
+#plt.xlim(0, 100)
+print('secant min', time[secant_min], secant[secant_min])
+plt.legend()
+
+plt.show()
+
+# iterating over volumes
+plt.figure()
+volumes = np.arange(1,250)
+sec_min = []
+count = []
+t_sec_min = []
+
+for v in volumes:
+	IC_vloop = np.array([Xv0, Xd0])/v
+	IC_vloop = np.append(IC_vloop, IC_aa)
+	vloop = integrate.solve_ivp(HEK293, (0, t1), IC_vloop) # solve ODEs
+	#secant_vloop = (vloop.y[0][1:]-Xv0/v)/vloop.t[1:]
+	secant_vloop = (vloop.y[0]-Xv0/v)/vloop.t
+	
+	sec_min_ind = np.where(secant_vloop == np.min(secant_vloop))
+	sec_min.append(secant_vloop[sec_min_ind])
+	cellcount = vloop.y[0][sec_min_ind]*v
+	count.append(cellcount)
+	t_sec_min.append(vloop.t[sec_min_ind])
+
+plt.title('min secant vs volume')
+plt.plot(volumes, sec_min)
+plt.figure()
+plt.title('cell count at secant min vs volume')
+plt.plot(volumes, count)
+plt.scatter(volumes, count, color='red')
+
+plt.figure()
+plt.plot(volumes, t_sec_min, color='green')
+
+plt.show()
+'''

@@ -190,7 +190,7 @@ def HEK293(t, w): # inputs: time value, solution vector at current iteration
 					])
 
 # cell media initial conditions
-GLC_0 = 40		# glucose concentration [=] mM
+GLC_0 = 50		# glucose concentration [=] mM
 GLN_0 = 4 		# glutamine concentration [=] mM
 AMM_0 = 1e-10	# ammonia concentration [=] mM 
 
@@ -206,22 +206,26 @@ IC_aa = np.array([GLC_0, GLN_0, AMM_0, 1.84, 4.06, 2.33, 1.8, .61, 2.22, 2.25, 0
 IC = np.append(IC, IC_aa)
 #print(np.size(IC))
 
-v = np.array([.1, 1, 5, 20, 100]) 	# vector of volumes [=] L
-v = v/1000 # convert to L
-t = np.array([16, 36, 48, 72, 80])			# vector of times [=] hours
+v = np.array([.25, .5, 2, 2, 5, 5, 10, 10, 50, 50, 200, 200, 1000, 1000]) 	# vector of volumes [=] L
+t0 = 150							# solve ODEs until this time in hours
+t = []
 viable = [Xv0/v[0]] 						# vector of viable cell density initial conditions
 dead = [Xd0/v[0]]							# vector of dead cell density initial conditions
 multiply = []								# vector of cell density multipliers from time inoculum to harvest
 cell_count = [1e6]							# vector of total cell count
-desired_count = 2.16e12
+desired_count = 5.62e13 # cells per year
 
 for i in range(len(v)): # iteratre through all passages
 	# make initial condition vector for cell concentrations
 	cell_density = np.array([viable[i], dead[i]])
 	IC = np.append(cell_density, IC_aa) # append cell media concentrations to cell concentrations
-	passage = integrate.solve_ivp(HEK293, (0, t[i]), IC, rtol=1e-9, max_step=.5) # solve ODEs
-	final_density = passage.y[0][-1]	# final cell density when cells are harvested at passage i
-	Xd_t = passage.y[1][-1]				# pass the number of dead cells to the next passage ICs.
+	passage = integrate.solve_ivp(HEK293, (0, t0), IC, rtol=1e-6) # solve ODEs
+	final_density = np.max(passage.y[0])	# final cell density when cells are harvested at passage i
+	harvest_index = np.where(passage.y[0] == final_density)[0][0]
+	print(harvest_index)
+	harvest_time = passage.t[harvest_index]
+	t.append(harvest_time)
+	Xd_t = passage.y[1][harvest_index]		# pass the number of dead cells to the next passage ICs.
 	mult = final_density/cell_density[0]	# find the ratio between final density and intial density
 	multiply.append(mult)					# record this multiplier in the 'multiply' list
 	count = final_density*v[i]				# record the cell count
@@ -238,13 +242,18 @@ for i in range(len(v)): # iteratre through all passages
 	# plotting
 	time = passage.t + np.sum(t[0:i])
 	label_string = 'passage ' + str(i+1)
-	plt.plot(time, passage.y[0], label=label_string)
+	plt.plot(time[:harvest_index], passage.y[0][:harvest_index], label=label_string)
 
 print('mult', multiply)
 print('inoculum density', viable)
 print('total cells', [f"{x:.2e}" for x in cell_count])
 print('total time', np.sum(t)/24, 'days')
-print(desired_count<cell_count[-1]) 
+n_batch = np.ceil(8760/np.sum(t))
+print(n_batch, 'annual batches')
+cell_yield_annual = cell_count[-1]*n_batch
+print(f"{cell_yield_annual:.2e}" ,'annual cell yield')
+print(desired_count<cell_yield_annual) 
+print('times', t)
 
 plt.title('Cell density vs time')
 plt.xlabel('time / hours')
