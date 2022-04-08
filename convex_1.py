@@ -194,7 +194,7 @@ def HEK293(t, w): # inputs: time value, solution vector at current iteration
 
 # cell media initial conditions
 GLC_0 = 20		# glucose concentration [=] mM
-GLN_0 = 4 		# glutamine concentration [=] mM
+GLN_0 = .5 		# glutamine concentration [=] mM
 AMM_0 = 1e-10	# ammonia concentration [=] mM 
 
 # first cell growth stage is fixed. 
@@ -204,7 +204,7 @@ Xd0 = X0-Xv0 		# assume 5% dead cells or 95% viable cells
 
 # first analyze the cell growth for one passage
 v1 = .1				# dilution volume L
-t1 = 100			# solve ODEs up to this time point		
+t1 = 130			# solve ODEs up to this time point		
 IC = np.array([Xv0, Xd0])/v1
 # construct a IC vector by appending a list of the remaining substances in order of:
 # glc, gln, amm, ala, arg, asn, asp, cys, glu, gly, his, ile, leu, lys, met, phe, pro, ser, thr, tyr, val, lac
@@ -243,6 +243,22 @@ plt.xlabel('time / hours')
 plt.ylabel('dimensionless quantity')
 plt.title('1e6 cells diluted by %.1f L in %d mM GLN'%(v1,GLN_0))
 plt.legend()
+
+
+# solve ODEs over several GLN concentrations
+plt.figure()
+GLNconc = [.5, 1, 2, 4, 6, 12, 20]
+for x in GLNconc:
+	IC[3] = x  		# edit the IC vector
+	gln_sol = integrate.solve_ivp(HEK293, (0, t1), IC, rtol=1e-6, max_step=1) # solve ODEs
+	plt.plot(gln_sol.t, gln_sol.y[0], label='%s mM'%(str(x)))
+plt.legend()
+plt.title('Cell density vs time for various initial [GLN]')
+plt.xlabel('time / hours')
+plt.ylabel('cell density / $cells\\cdot L^{-1}$')
+
+#plt.title('Cell density vs time for various initial [GLN], log scale')
+#plt.yscale('log') 	# toggle for log scale 
 plt.show()
 '''
 v2 = 10
